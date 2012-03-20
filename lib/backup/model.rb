@@ -76,6 +76,10 @@ module Backup
     attr_reader :splitter
 
     ##
+    # The mounters attribute holds an array of mounter objects
+    attr_reader :mounters
+
+    ##
     # The final backup Package this model will create.
     attr_reader :package
 
@@ -159,6 +163,12 @@ module Backup
     end
 
     ##
+    # Adds a mounter to use during the backup process
+    def mount_with(name, &block)
+      @mounter = get_class_from_scope(Mounter, name).new(&block)
+    end
+
+    ##
     # Adds a method that allows the user to configure this backup model
     # to use a Splitter, with the given +chunk_size+
     # The +chunk_size+ (in megabytes) will later determine
@@ -239,6 +249,8 @@ module Backup
       @time = @started_at.strftime("%Y.%m.%d.%H.%M.%S")
       log!(:started)
 
+      mounters.each(&:mount!)
+
       if databases.any? or archives.any?
         procedures.each do |procedure|
           (procedure.call; next) if procedure.is_a?(Proc)
@@ -247,6 +259,7 @@ module Backup
       end
 
       syncers.each(&:perform!)
+      mounters.each(&:unmount!)
       notifiers.each(&:perform!)
       log!(:finished)
 
@@ -313,7 +326,7 @@ module Backup
     ##
     # Returns an Array of the names (String) of the procedure instance variables
     def procedure_instance_variables
-      [:@databases, :@archives, :@storages, :@notifiers, :@syncers]
+      [:@databases, :@archives, :@storages, :@notifiers, :@syncers, :@mounters]
     end
 
     ##
